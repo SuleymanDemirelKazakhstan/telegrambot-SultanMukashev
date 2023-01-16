@@ -1,0 +1,10 @@
+{
+    "java.project.sourcePaths": ["src"],
+    "java.project.outputPath": "bin",
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "src/telegrambots-6.4.0-jar-with-dependencies.jar",
+        "c:\\Users\\Sultan\\Downloads\\telegrambots-6.4.0-jar-with-dependencies.jar",
+        "c:\\Users\\Sultan\\Downloads\\slf4j-simple-2.0.6.jar"
+    ]
+}
