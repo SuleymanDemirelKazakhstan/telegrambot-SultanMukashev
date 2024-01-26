@@ -4,25 +4,23 @@ import org.telegram.telegrambots.meta.api.objects.*;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import java.time.LocalDateTime;  
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
+import java.util.*;
 
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 
 public class MyAmazingBot extends TelegramLongPollingBot {
-    ArrayList<int[]> answers = new ArrayList<int[]>();
-    static boolean[] booked = new boolean[10];
-    static String[] bookinglist = new String[10];  
-    ArrayList<String> roomnames = new ArrayList<String>(); 
-    ArrayList<boolean[][]> rooms = new ArrayList<boolean[][]>();
-    String[] days = {"monday","tuesday","wednesday","thursday","friday"};
-    
+    static DateTimeFormatter form = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm");
+    static HashMap<Long, HashMap<LocalDateTime, String>> usersbookings = new HashMap<Long, HashMap<LocalDateTime, String>>();
+    static HashMap<LocalDateTime, String> empty = new HashMap<LocalDateTime, String>();
     @Override
     
     public void onUpdateReceived(Update update) {
+        long chat_id = update.getMessage().getChatId();
+        usersbookings.put(chat_id, new HashMap<LocalDateTime, String>());
         if (update.hasMessage() && update.getMessage().hasText()) {
             String message_text = update.getMessage().getText();
-                if(message_text.equals("/start")){ 
-                    long chat_id = update.getMessage().getChatId();
+                if(message_text.equals("/start")){
+                    
 
                 SendMessage ans = new SendMessage(); // Create a message object object
                 ans.setChatId(chat_id);
@@ -34,161 +32,80 @@ public class MyAmazingBot extends TelegramLongPollingBot {
                 }
                 }
                 else if(message_text.equals("/commands")){
-                    long chat_id = update.getMessage().getChatId();
+                    
                     SendMessage ans = new SendMessage(); // Create a message object object
                     ans.setChatId(chat_id);
-                    ans.setText(String.valueOf("/booking room + index + day + period of time separated by '-' - to book a room at that time.\n/list room + index + day of the week - to get a list of rooms to know if they are booked or not.\n/addroom + roomname - to add new room to the list\n/getroomsList - to get all names of rooms with indexes\n"));
+                    ans.setText(String.valueOf("/booking + room + date inf format(yyyy.MM.dd HH:mm-HH:mm).\n/list - to get a list of booked rooms(others are available).\n/Mylist - to get rooms that only you had booked.\n/cancel + room + date in format(yyyy.MM.dd HH:mm-HH:mm)."));
                     try {
                     execute(ans); // Sending our message object to user
                     } catch (TelegramApiException e) {
                         e.printStackTrace();
                     }
                 }
-            //     else if(message_text.substring(0,4).equals("")){
-            //     String[] inputs = message_text.substring(5).split(" ");
-            //     int res = Integer.valueOf(inputs[0])+Integer.valueOf(inputs[1]);
-            //     int[] inp = new int[3];
-            //     for(int i = 0; i < 2; i++){
-            //         inp[i] = Integer.valueOf(inputs[i]);
-            //     }
-            //     inp[2] = res;
-            //     answers.add(inp);
-            //     System.out.println(String.valueOf(res));
-            //     long chat_id = update.getMessage().getChatId();
-
-            //     SendMessage ans = new SendMessage(); // Create a message object object
-            //     ans.setChatId(chat_id);
-            //     ans.setText(String.valueOf(res));
-            //     try {
-            //         execute(ans); // Sending our message object to user
-            //     } catch (TelegramApiException e) {
-            //         e.printStackTrace();
-            //     }
-            // }
-
-
-            // else if(message_text.equals("/getresults")){
-            //     long chat_id = update.getMessage().getChatId();
-            //     String res = "";
-            //     for(int i = 0; i < answers.size(); i++){
-            //     res += answers.get(i)[0]+"+"+answers.get(i)[1]+"="+answers.get(i)[2];
-            //     res+="\n";
-            //     }
-            //     System.out.print(res);
-            //     SendMessage ans = new SendMessage(); // Create a message object objects
-            //     ans.setChatId(chat_id);
-            //     ans.setText(String.valueOf(res));
-            //     try {
-            //         execute(ans); // Sending our message object to user
-            //     } catch (TelegramApiException e) {
-            //         e.printStackTrace();
-            //     }
-            // }
-            else if(message_text.substring(0,8).equals("/addroom")){
-                String roomname = message_text.substring(9);
-                boolean[][] bookedrooms = new boolean[5][10];
-                rooms.add(bookedrooms);
-                roomnames.add(roomname);
-        
-            } 
-            else if(message_text.equals("/getroomsList")){
-                String res = "";
-                for(int i = 0; i < roomnames.size(); i++){
-                    res+=(i+1)+" - "+roomnames.get(i)+"\n";
-                }
-                long chat_id = update.getMessage().getChatId();
-                SendMessage ans = new SendMessage();
-                ans.setChatId(chat_id);
-                ans.setText(res);
-                try{
-                    execute(ans);
-                }
-                catch(TelegramApiException e){
-                    e.printStackTrace();
-                }
-            }
-            else if(message_text.substring(0,8).equals("/booking")){
-                boolean access = true;
+            
+            else if(message_text.contains("/booking")){
+                // String[] times = message_text.split("");
                 String[] mess = message_text.split(" ");
-                int index = Integer.valueOf(mess[2]);
-                int day = Integer.valueOf(mess[3]);
-                String[] times = message_text.substring(18).split("-");
-                int time1 = Integer.valueOf(times[0]);
-                int time2 = Integer.valueOf(times[1]);
-                long chat_id = update.getMessage().getChatId();
-                if((index)<=rooms.size()){
-                if(time1 > 8 && time2 < 19 && day > 0 && day  < 6){
-                for(int i = time1; i < time2; i++){
-                    if(rooms.get(index-1)[day-1][i-9]){
-                        access = false;
-                        break;
+                String name = mess[1].toUpperCase();
+                String date = mess[2];
+                String[] interval = mess[3].split("-");
+                LocalDateTime time1 = LocalDateTime.parse(date+" "+interval[0], form);
+                LocalDateTime time2 = LocalDateTime.parse(date+" "+interval[1], form);
+                
+                if(!Room.isWeekEnd(time1)){
+                    if(name.matches("[ABCDEFGH][1-3][0-1][1-8]") || name.matches("[ABCD][1-2]") || name.matches("[H][0][1-3]}") ){
+                    if(time1.isAfter(LocalDateTime.parse(date+" 09:00", form)) && time2.isBefore(LocalDateTime.parse(date+" 18:00", form))){
+                    SendMessage ans = new SendMessage(); // Create a message object object
+                    ans.setChatId(chat_id);
+                    ans.setText(Room.booking(time1, time2, name));
+                    
+                    for(LocalDateTime t = time1; t.isBefore(time2); t = t.plusHours(1)){
+                       { usersbookings.get(chat_id).put(t, name);
                     }
-                }
-                    if(!access){
-                    SendMessage ans = new SendMessage(); // Create a message object object
-                    ans.setChatId(chat_id);
-                    ans.setText("This time is already booked, try to choose another");
-                    try {
-                        execute(ans); // Sending our message object to user
-                    } catch (TelegramApiException e) {
-                        e.printStackTrace();
-                    }    
-                }
-                else{
-                    for(int i = time1; i < time2; i++ ){
-                    rooms.get(index-1)[day-1][i-9] = true;
-                }
-                    SendMessage ans = new SendMessage(); // Create a message object object
-                    ans.setChatId(chat_id);
-                    ans.setText("You booked room "+roomnames.get(index-1)+" on "+days[day-1]+" from "+time1+":00 till "+time2+":00 successfully");
+                    }  
                     try {
                         execute(ans); // Sending our message object to user
                     } catch (TelegramApiException e) {
                         e.printStackTrace();
                     }
-                }
                 }
                 else{
                     SendMessage ans = new SendMessage(); // Create a message object object
                     ans.setChatId(chat_id);
-                    ans.setText("You can book a room only from monday to friday between 9:00-18:00!");
+                    ans.setText("You can book a room only between 9:00-18:00!");
                     try {
                         execute(ans); // Sending our message object to user
                     } catch (TelegramApiException e) {
                         e.printStackTrace();
                     }
                 }
-            }else{
+            } else{
                 SendMessage ans = new SendMessage(); // Create a message object object
                     ans.setChatId(chat_id);
-                    ans.setText("Choose room from the list or add it!");
+                    ans.setText("Choose an existing room!");
                     try {
                         execute(ans); // Sending our message object to user
                     } catch (TelegramApiException e) {
                         e.printStackTrace();
                     }
             }
-            }
-            else if(message_text.substring(0,5).equals("/list")){
-                String[] mess = message_text.split(" ");
-                int day = Integer.valueOf(mess[3]);
-                int index = Integer.valueOf(mess[2]); 
-                for(int i = 0; i < 9; i++){
-                    if(rooms.get(index-1)[day-1][i]){
-                        bookinglist[i] = "on "+days[day-1]+" at "+(i+9)+":00 room "+roomnames.get(index-1)+" is booked";
-                    }
-                    else{
-                        bookinglist[i] ="on "+days[day-1]+" at "+(i+9)+":00 room "+roomnames.get(index-1)+" is not booked"; 
-                    }
-                }
-                String res = "";
-                for(int i = 0; i < 9; i++){
-                    res+=bookinglist[i]+"\n";
-                }
-                    SendMessage ans = new SendMessage(); // Create a message object object
-                    long chat_id = update.getMessage().getChatId();
+        }else{
+            SendMessage ans = new SendMessage(); // Create a message object object
                     ans.setChatId(chat_id);
-                    ans.setText(res);
+                    ans.setText("It is a weekend!");
+                    try {
+                        execute(ans); // Sending our message object to user
+                    } catch (TelegramApiException e) {
+                        e.printStackTrace();
+                    }
+        }
+    }
+        
+            else if(message_text.contains("/list")){
+                    SendMessage ans = new SendMessage(); // Create a message object object
+                    
+                    ans.setChatId(chat_id);
+                    ans.setText(Room.list());
                     try {
                         execute(ans); // Sending our message object to user
                     } catch (TelegramApiException e) {
@@ -196,10 +113,40 @@ public class MyAmazingBot extends TelegramLongPollingBot {
                     }
 
             }
+            else if(message_text.contains("/mylist")){
+                SendMessage ans = new SendMessage(); // Create a message object object
                 
+                ans.setChatId(chat_id);
+                ans.setText(Mylist(chat_id));
+                try {
+                    execute(ans); // Sending our message object to user
+                } catch (TelegramApiException e) {
+                    e.printStackTrace();
+                }
+
+        } 
+        else if(message_text.contains("/cancel")){
+            // String[] times = message_text.split(" at ");
+            String[] mess = message_text.split(" ");
+            String name = mess[1];
+            String date = mess[2];
+            String[] interval = mess[3].split("-");
+            LocalDateTime time1 = LocalDateTime.parse(date+" "+interval[0], form);
+            LocalDateTime time2 = LocalDateTime.parse(date+" "+interval[1], form);
+            SendMessage ans = new SendMessage(); // Create a message object object
+                    
+                    ans.setChatId(chat_id);
+                    ans.setText(cancel(chat_id, time1, time2, name));
+                    try {
+                        execute(ans); // Sending our message object to user
+                    } catch (TelegramApiException e) {
+                        e.printStackTrace();
+                    }
+
+        } 
             else{
             System.out.println(message_text + "😀");
-            long chat_id = update.getMessage().getChatId();
+            
 
             SendMessage message = new SendMessage(); // Create a message object object
             message.setChatId(chat_id);
@@ -212,14 +159,22 @@ public class MyAmazingBot extends TelegramLongPollingBot {
         }
         }
     }
-    public void reset(){
-        if(Integer.valueOf(java.time.LocalTime.now().toString().substring(0, 2))>=18){
-            for(int i = 0; i < 10; i++){
-                booked[i] = false;
-                bookinglist[i] = "at "+(i+9)+":00 room is not booked";
-            }
+   public static String Mylist(Long id){
+    String ans = "You booked:\n";
+    for(LocalDateTime time: usersbookings.get(id).keySet()){
+            ans+="Room "+usersbookings.get(id).get(time)+" at "+time.format(form)+"\n";
         }
+    
+    return ans;
+   }
+   public static String cancel(Long id, LocalDateTime time1, LocalDateTime time2, String name){
+    for(LocalDateTime t = time1; t.isBefore(time2); t = t.plusHours(1)){
+        usersbookings.get(id).remove(t);
+        Room.reserved.get(t).remove(name);
+        
     }
+    return "Your booking is cancelled";
+   }
     @Override
     public String getBotUsername() {
         
@@ -230,5 +185,62 @@ public class MyAmazingBot extends TelegramLongPollingBot {
     public String getBotToken() {
         return "5941034705:AAFvnZqjbR7OO5N42svRU_SLkKPTYz5Z39c";
     }
-    
+}
+class Room{
+    static HashMap<LocalDateTime, HashSet<String>> reserved = new HashMap<LocalDateTime, HashSet<String>>();
+    String roomname;
+    static DateTimeFormatter customFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    static DateTimeFormatter formdate = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    static DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+    Room(String name){
+        this.roomname = name;
+    }
+    public static boolean available(LocalDateTime time, String room){
+        if(reserved.containsKey(time)){
+            if(reserved.get(time).contains(room)) return false;
+            else return true;
+        }
+        else return true;
+    }
+    public static String booking(LocalDateTime time1, LocalDateTime time2, String room){
+        boolean available = false;
+        String ans = "";
+        for(LocalDateTime t = time1; t.isBefore(time2); t = t.plusHours(1)){
+            if(available(t, room)) available = true;
+            else { available = false; break;}
+        }
+        if(available){
+            for(LocalDateTime t = time1; t.isBefore(time2); t = t.plusHours(1)){
+                reserved.put(t, new HashSet<String>());
+                reserved.get(t).add(room);
+            }   
+            ans = "You booked room "+room+" on "+time1.format(formdate)+" from "+time1.format(formatter)+" till "+time2.format(formatter);
+        }else ans = "This room is already booked at that date";
+        return ans ;
+    }
+    public static String toString(LocalDateTime time, String room){
+        String ans = "";
+        ans = room+" is booked on "+time.format(customFormat);
+        return ans;
+    }
+    public static String list(){
+        String ans = "";
+        for(LocalDateTime time: reserved.keySet()){
+            for(String name: reserved.get(time)){
+                ans+=time.format(customFormat)+" "+name+" is booked\n";
+            }
+        }
+        return ans;
+    }    
+    public static boolean isWeekEnd(LocalDateTime localDate)
+    {
+        String dayOfWeek = localDate.getDayOfWeek().toString();
+        if("SATURDAY".equalsIgnoreCase(dayOfWeek)||
+        "SUNDAY".equalsIgnoreCase(dayOfWeek))
+        {
+            return true;
+        }
+        return false;
+    }
+
 }
